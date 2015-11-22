@@ -1,11 +1,18 @@
+rm(list = ls())
+
 library(Amelia)
 library(caret)
 library(randomForest)
 library(ggplot2)
+library(dplyr)
 
 set.seed(1234)
 
 train <- read.csv("data/train.csv")
+
+# There were a couple of records where "Embarked" was blank. These records were ignored because they're rare and won't change the model much.
+train <- subset(train, Embarked != "")
+train <- droplevels(train)
 
 # The passenger ID is just an assigned integer, and is not a true attribute of the passenger. This column is excluded.
 train$PassengerId <- NULL
@@ -29,6 +36,9 @@ imputed.ages <- as.integer(rowMeans(imputed.ages.df))
 train$Age[is.na(train$Age)] <- imputed.ages[is.na(train$Age)]
 train$Age[train$Age < 0] <- 0
 
+# Convert the 'Survived' status from an int to a factor
+train$Survived <- as.factor(train$Survived)
+
 # Split the data into train and test
 train.idx <- createDataPartition(train$Survived, p = 0.8, list = FALSE)
 
@@ -45,20 +55,21 @@ train.train$Cabin <- NULL
 model.rf <- randomForest(Survived ~ ., data = train.train)
 model.rf.importance <- importance(model.rf)
 attribute <- row.names(data.frame(model.rf.importance))
-model.rf.importance <- arrange(cbind(attribute, data.frame(model.rf.importance)), -IncNodePurity)
+model.rf.importance <- arrange(cbind(attribute, data.frame(model.rf.importance)), -MeanDecreaseGini)
 
 model.rf.importance$attribute <- factor(model.rf.importance$attribute, levels = rev(model.rf.importance$attribute))
 
-qplot(IncNodePurity, attribute, data = model.rf.importance)
+qplot(MeanDecreaseGini, attribute, data = model.rf.importance)
 
-confusionMatrix(round(predict(model.rf, train.test), 0), train.test$Survived)
+confusionMatrix(predict(model.rf, train.test), train.test$Survived)
 
 # Confusion Matrix and Statistics
 # 
 #           Reference
 # Prediction   0   1
 #          0 103  21
-#          1   5  49
+#          1   5  49y
+
 
 #            Accuracy : 0.8539          
 #              95% CI : (0.7933, 0.9023)
@@ -66,4 +77,12 @@ confusionMatrix(round(predict(model.rf, train.test), 0), train.test$Survived)
 # P-Value [Acc > NIR] : 4.78e-13        
 
 
+test <- read.csv("data/test.csv")
 
+test.passenger.ids <- test$PassengerId
+test$PassengerId <- NULL
+test$Name <- NULL
+test$Ticket <- NULL
+test$Cabin <- NULL
+
+predict(model.rf, test)
