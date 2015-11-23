@@ -1,4 +1,11 @@
 #
+library(randomForest)
+library(ggplot2)
+library(tm)
+library(dplyr)
+library(caret)
+
+
 set.seed(1234)
 
 train <- read.csv("data/train.csv", na.strings = "")
@@ -122,11 +129,10 @@ test$PassengerId <- NULL
 
 test.roughfix <- na.roughfix(test)
 
-predict(model.rf, test.roughfix)
-
+# make prediction using frequently occurring terms in the name
 model.rf.predictions <- data.frame(cbind(test.passenger.ids, as.character(predict(model.rf, test.roughfix))))
-names(model.rf.predictions) <- c("PassengerId", "Survived")
 
+names(model.rf.predictions) <- c("PassengerId", "Survived")
 write.csv(model.rf.predictions, file = "titanic_test_predictions.csv", row.names = FALSE, quote = FALSE)
 
 
